@@ -1,4 +1,3 @@
-#include "/home/user/project/stand_ahv_2018/src/include/HRC.h"
 #define TRIGER_PIN 11
 #define ECHO_PIN 12
 
