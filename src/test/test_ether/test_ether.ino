@@ -1,119 +1,74 @@
-/*
-  Web client
+// Demo using DHCP and DNS to perform a web client request.
+// 2011-06-08 <jc@wippler.nl> http://opensource.org/licenses/mit-license.php
 
- This sketch connects to a website (http://www.google.com)
- using an Arduino Wiznet Ethernet shield.
+#include <EtherCard.h>
+#define Trig 5
+#define Echo 6
+#define ledPin 13
 
- Circuit:
- * Ethernet shield attached to pins 10, 11, 12, 13
+// ethernet interface mac address, must be unique on the LAN
+static byte mymac[] = { 0x74,0x69,0x69,0x2D,0x30,0x31 };
 
- created 18 Dec 2009
- by David A. Mellis
- modified 9 Apr 2012
- by Tom Igoe, based on work by Adrian McEwen
+byte Ethernet::buffer[700];
+static uint32_t timer;
 
+const char website[] PROGMEM = "www.tobo.com.ua";
 
-  Ethe odule    mega
-      CS          53
-      SI          51
-      SO          50
-      sck         52
-      vcc         3.3
+// called when the client request is complete
+static void my_callback (byte status, word off, word len) {
+  Serial.println(">>>");
+  Ethernet::buffer[off+300] = 0;
+  Serial.print((const char*) Ethernet::buffer + off);
+  Serial.println("...");
+}
 
- */
+void setup () {
+  pinMode(Trig, OUTPUT); //инициируем как выход 
+  pinMode(Echo, INPUT); //инициируем как вход 
+  pinMode(ledPin, OUTPUT); 
+  Serial.begin(57600);
+  Serial.println(F("\n[webClient]"));
 
-#include <SPI.h>
-#include <Ethernet.h>
+  if (ether.begin(sizeof Ethernet::buffer, mymac) == 0) 
+    Serial.println(F("Failed to access Ethernet controller"));
+  if (!ether.dhcpSetup())
+    Serial.println(F("DHCP failed"));
 
-// Enter a MAC address for your controller below.
-// Newer Ethernet shields have a MAC address printed on a sticker on the shield
-byte mac[] = { 92, 56, 52, 10, 00, 01 };
-// if you don't want to use DNS (and reduce your sketch size)
-// use the numeric IP instead of the name for the server:
-IPAddress server(192, 168, 0, 20);  // numeric IP for Google (no DNS)
-//char server[] = "www.google.com";    // name address for Google (using DNS)
+  ether.printIp("IP:  ", ether.myip);
+  ether.printIp("GW:  ", ether.gwip);  
+  ether.printIp("DNS: ", ether.dnsip);  
 
-// Set the static IP address to use if the DHCP fails to assign
-IPAddress ip(192, 168, 0, 177);
+  if (!ether.dnsLookup(website))
+    Serial.println("DNS failed");
+    
+  ether.printIp("SRV: ", ether.hisip);
+}
+unsigned int impulseTime=0; 
+unsigned int distance_sm=0; 
 
-// Initialize the Ethernet client library
-// with the IP address and port of the server
-// that you want to connect to (port 80 is default for HTTP):
-EthernetClient client;
-
-void setup() {
-  // Open serial communications and wait for port to open:
-  Serial.begin(9600);
-  while (!Serial) {
-    ; // wait for serial port to connect. Needed for native USB port only
+static int dist(){
+  digitalWrite(Trig, HIGH); 
+  /* Подаем импульс на вход trig дальномера */
+  delayMicroseconds(10); // равный 10 микросекундам 
+  digitalWrite(Trig, LOW); // Отключаем 
+  impulseTime=pulseIn(Echo, HIGH); // Замеряем длину импульса 
+  return (impulseTime/58); // Пересчитываем в сантиметры 
   }
-/*
-  // start the Ethernet connection:
-  if (Ethernet.begin(mac) == 0) {
-    Serial.println("Failed to configure Ethernet using DHCP");
-    // try to congifure using IP address instead of DHCP:
-    */
- while (1) 
- {
-    Ethernet.begin(mac, ip);
+
+void loop () {
+  ether.packetLoop(ether.packetReceive());
   
-  // give the Ethernet shield a second to initialize:
-  delay(1000);
-  Serial.println("connecting...");
-
-  // if you get a connection, report back via serial:
-  if (client.connect(server, 8080)) {
-    Serial.println("connected");
-    // Make a HTTP request:
-    /*
-     *  Make a connect request
-     */
-    client.println("GET /search?q=arduino HTTP/1.1");
-    client.println("Host: www.google.com");
-    client.println("Connection: close");
-    client.println();
-  } else {
-    // if you didn't get a connection to the server:
-    Serial.println("connection failed");
-  }
-  delay(1000);
-}
-}
-
-void print_to_ether(EthernetClient *client, IPAddress server, int port, char *data)
-{
-  if (client->connect(server, port))
-  {
-    client->println(data);
-  }
-  else
-  {
-    Serial.println("conection failed");
+  if (millis() > timer) {
+    timer = millis() + 5000;
+    Serial.println();
+    Serial.print("<<< REQ ");
+    String dataToBdSt = "?one=";
+  dataToBdSt += 1;
+  dataToBdSt += "&two=";
+  dataToBdSt += dist();
+  char dataToBdCh[40];
+  dataToBdSt.toCharArray(dataToBdCh, 40); 
+ 
+    ether.browseUrl(PSTR("/test.php"), dataToBdCh, website, my_callback);
   }
 }
-void server_read(EthernetClient *client)
-{
-  int i = 0;
-  char str[1024] = "";
-  
-  while (client->available())
-  {
-    str[i] = client->read();
-    i++;
-  }
-  /*
-   * Do samething with str
-   */
-}
-
-
-void loop() {
-  // if there are incoming bytes available
-  // from the server, read them and print them:
-  if (client.available()) {
-    char c = client.read();
-    Serial.print(c);
-  }
-
-}
-
