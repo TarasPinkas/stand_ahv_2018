@@ -66,7 +66,6 @@ void loop()
 
 bool eth_func(const char *site)
 {
-
 	char dataToBdCh[DATA_LEN] = { 0 };
 
 	unsigned temp = get_celsius(TERM_PIN);
